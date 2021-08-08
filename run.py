@@ -100,9 +100,9 @@ def load_config():
         args(argparse.ArgumentParser): Configuration.
     """
     parser = argparse.ArgumentParser(description='LTHNet_PyTorch_LinearLoss')
-    parser.add_argument('--dataset', default='imagenet-100-IF1', type=str,
+    parser.add_argument('--dataset', default='cifar-100-IF50', type=str,
                         help='Dataset name.')
-    parser.add_argument('--root', default='C:\\Users\\dell\\Desktop\\LTH_linearloss\\data\\imagenet100\\', type=str,
+    parser.add_argument('--root', default='', type=str,
                         help='Path of dataset')
     # parser.add_argument('--root', default='/home/13810427976/notespace/cifar-100/cifar-100-IF20/', type=str,
     #                    help='Path of dataset')

@@ -68,7 +68,7 @@ def train(
     training_time = 0.
     prototypes = torch.zeros([num_prototypes, feature_dim])
     prototypes = prototypes.to(device)
-
+    global_iter = 0
     # Training
     for it in range(max_iter):
         # update prototypes
@@ -89,10 +89,13 @@ def train(
             running_loss = running_loss + loss.item()
             loss.backward()
             optimizer.step()
+            global_iter += 1
+            logger.info(f"After {global_iter} iters, the long-tailed loss is {loss}")
 
         # update step
         scheduler.step()
         training_time = time.time() - tic
+        
 
         # Evaluate
         if it % evaluate_interval == evaluate_interval - 1:
