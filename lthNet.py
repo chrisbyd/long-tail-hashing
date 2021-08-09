@@ -217,7 +217,10 @@ def generate_prototypes(model, dataloader, num_prototypes, feature_dim, device, 
             data, targets = data.to(device), targets.to(device)
             _, _, direct_feature = model(data, dynamic_meta_embedding, prototypes_placeholder)
             direct_feature = direct_feature.to('cpu')
+         
+            
             index = torch.nonzero(targets, as_tuple=False)[:, 1]
+         
             index = index.to('cpu')
             for j in range(len(data)):
                 prototypes[index[j], :] = prototypes[index[j], :] + direct_feature[j, :]
