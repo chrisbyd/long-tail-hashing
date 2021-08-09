@@ -68,16 +68,18 @@ def train(
     training_time = 0.
     prototypes = torch.zeros([num_prototypes, feature_dim])
     prototypes = prototypes.to(device)
-    global_iter = 0
+   
     # Training
     for it in range(max_iter):
         # update prototypes
+        batch_iter = 0
         prototypes = generate_prototypes(model, train_dataloader, num_prototypes, feature_dim, device,
                                          dynamic_meta_embedding, prototypes)
         prototypes = prototypes.to(device)
 
         model.train()
         tic = time.time()
+        num_batch = len(train_dataloader)
         for data, targets, index in train_dataloader:
             data, targets, index = data.to(device), targets.to(device), index.to(device)
             optimizer.zero_grad()
@@ -89,8 +91,8 @@ def train(
             running_loss = running_loss + loss.item()
             loss.backward()
             optimizer.step()
-            global_iter += 1
-            logger.info(f"After {global_iter} iters, the long-tailed loss is {loss}")
+            batch_iter += 1
+            logger.info(f"Epoch:{it}: {batch_iter}/{num_batch}, the long-tailed loss is {loss}")
 
         # update step
         scheduler.step()
@@ -130,7 +132,12 @@ def train(
             # )
 
             # Log
-            logger.info('[iter:{}/{}][loss:{:.2f}][map:{:.4f}][time:{:.2f}]'.format(
+            logger.info("Start evaluating")
+            num_query = query_code.shape[0]
+            num_gallery = retrieval_code.shape[0]
+            logger.info(f"The number of query images is {num_query}")
+            logger.info(f"The number of gallery images is {num_gallery}")
+            logger.info('[Epoch:{}/{}][loss:{:.2f}][map:{:.4f}][time:{:.2f}]'.format(
                 it + 1,
                 max_iter,
                 running_loss / evaluate_interval,
