@@ -5,11 +5,37 @@ import torch
 from PIL import Image
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
-
+from data.ClassAwareSampler import RandomIdentitySampler
 from data.transform import train_transform, query_transform, Onehot, encode_onehot
+from collections import Counter
+def load_contrastive(root, batch_size, num_workers, num_instances = 1):
+    """
+    Loader for contrastive learning
+    """
+    root = os.path.join(root, 'images')
+    num_classes = 100
+    dataset = ImagenetDataset(
+            os.path.join(root, 'train'),
+            transform=train_transform(),
+            target_transform=Onehot(num_classes),
+        )
+    targets =  dataset.get_targets()
+    sampler = RandomIdentitySampler(targets= targets, batch_size= batch_size, num_instances= num_instances)
+    train_loader = DataLoader(
+                dataset,
+                batch_size = batch_size,
+                sampler = sampler,
+                num_workers = num_workers,
+                pin_memory = True,
+    )
+    return train_loader
+
+   
 
 
-def load_data(root, batch_size, num_workers):
+
+
+def load_data(root, batch_size,num_workers):
     """
     Load cifar-10 dataset.
 
@@ -23,16 +49,30 @@ def load_data(root, batch_size, num_workers):
     """
     root = os.path.join(root, 'images')
     num_classes = 100
-    train_dataloader = DataLoader(
-        ImagenetDataset(
+    # train_dataloader = DataLoader(
+    #     ImagenetDataset(
+    #         os.path.join(root, 'train'),
+    #         transform=train_transform(),
+    #         target_transform=Onehot(num_classes),
+    #     ),
+    #     batch_size=batch_size,
+    #     num_workers=num_workers,
+    #     shuffle=True,
+    #     pin_memory=True,
+    # )
+    dataset = ImagenetDataset(
             os.path.join(root, 'train'),
             transform=train_transform(),
             target_transform=Onehot(num_classes),
-        ),
-        batch_size=batch_size,
-        num_workers=num_workers,
-        shuffle=True,
-        pin_memory=True,
+        )
+    targets =  dataset.get_targets()
+    sampler = RandomIdentitySampler(targets= targets, batch_size= batch_size, num_instances= 1)
+    train_dataloader = DataLoader(
+                dataset,
+                batch_size = batch_size,
+                sampler = sampler,
+                num_workers = num_workers,
+                pin_memory = True,
     )
 
     query_dataloader = DataLoader(
@@ -72,7 +112,7 @@ class ImagenetDataset(Dataset):
         self.target_transform = target_transform
         self.data = []
         self.targets = []
-
+    
         # Assume file alphabet order is the class order
         if ImagenetDataset.class_to_idx is None:
             ImagenetDataset.classes, ImagenetDataset.class_to_idx = self._find_classes(root)
@@ -84,6 +124,9 @@ class ImagenetDataset(Dataset):
             self.data.extend(files)
             self.targets.extend([ImagenetDataset.class_to_idx[cl] for i in range(len(files))])
         self.targets = np.asarray(self.targets)
+        counter_targets = dict(Counter(self.targets))
+        
+      
         self.onehot_targets = torch.from_numpy(encode_onehot(self.targets, 100)).float()
 
     def get_onehot_targets(self):
@@ -102,6 +145,9 @@ class ImagenetDataset(Dataset):
         if self.target_transform is not None:
             target = self.target_transform(target)
         return img, target, item
+    
+    def get_targets(self):
+        return self.targets
 
     def _find_classes(self, dir):
         """

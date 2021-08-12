@@ -118,6 +118,9 @@ def load_config():
                         help='number of prototypes.(default: 100)')
     parser.add_argument('--batch-size', default=128, type=int,
                         help='Batch size.(default: 128)')
+    parser.add_argument('--num_instances', default=5, type=int,
+                        help='num_instances.(default: 128)')
+
     parser.add_argument('--lr', default=1e-5, type=float,
                         help='Learning rate.(default: 1e-5)')
     parser.add_argument('--max-iter', default=100, type=int,

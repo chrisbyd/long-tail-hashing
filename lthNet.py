@@ -87,13 +87,13 @@ def train(
             #
             hashcodes, assignments, _ = model(data, dynamic_meta_embedding, prototypes)
             loss = criterion(hashcodes, assignments, targets, device, beta, gamma, mapping, it, max_iter)
-
+            logger.info(f"Epoch {it}/{max_iter}, After epoch {it}, the loss is {loss.item()}")
             running_loss = running_loss + loss.item()
             loss.backward()
             optimizer.step()
             batch_iter += 1
-            logger.info(f"Epoch:{it}: {batch_iter}/{num_batch}, the long-tailed loss is {loss}")
-
+          
+        
         # update step
         scheduler.step()
         training_time = time.time() - tic
