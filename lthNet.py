@@ -98,10 +98,10 @@ def train(
             #
             hashcodes, assignments, _ = model(data, dynamic_meta_embedding, prototypes)
             loss_contrast_batch = ContrastLoss(hashcodes, targets, hashcodes, targets )
-            loss_contrast_centroids = ContrastLoss(hashcodes, targets, hash_centroids, centroids_labels, self_contrast= False)
+          #  loss_contrast_centroids = ContrastLoss(hashcodes, targets, hash_centroids, centroids_labels, self_contrast= False)
 
             loss = criterion(hashcodes, assignments, targets, device, beta, gamma, mapping, it, max_iter)
-            loss = loss + loss_contrast_batch + loss_contrast_centroids
+            loss = loss + loss_contrast_batch
             
             running_loss = running_loss + loss.item()
             loss.backward()
