@@ -102,13 +102,13 @@ def train(
 
             loss = criterion(hashcodes, assignments, targets, device, beta, gamma, mapping, it, max_iter)
             loss = loss + loss_contrast_batch + loss_contrast_centroids
-            logger.info(f"Epoch {it}/{max_iter},  {batch_iter}/{num_batch} the loss is {loss.item()}")
+            
             running_loss = running_loss + loss.item()
             loss.backward()
             optimizer.step()
             batch_iter += 1
           
-        
+        logger.info(f"Epoch {it}/{max_iter},  the loss is {loss.item()}")
         # update step
         scheduler.step()
         training_time = time.time() - tic
