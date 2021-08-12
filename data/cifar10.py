@@ -5,9 +5,9 @@ import torch
 from PIL import Image
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
-
-from data.transform import train_transform, query_transform, Onehot, encode_onehot
-
+from collections import defaultdict
+from data.transform import train_transform, query_transform, Onehot, encode_onehot, TwoCropTransform, train_two_transform
+import random
 
 def load_data(root, batch_size, num_workers):
     """
@@ -27,6 +27,7 @@ def load_data(root, batch_size, num_workers):
         ImagenetDataset(
             os.path.join(root, 'train'),
             transform=train_transform(),
+            contrast_transform= TwoCropTransform(train_two_transform),
             target_transform=Onehot(num_classes),
         ),
         batch_size=batch_size,
@@ -39,6 +40,7 @@ def load_data(root, batch_size, num_workers):
         ImagenetDataset(
             os.path.join(root, 'query'),
             transform=query_transform(),
+            contrast_transform=query_transform(),
             target_transform=Onehot(num_classes),
         ),
         batch_size=batch_size,
@@ -51,6 +53,7 @@ def load_data(root, batch_size, num_workers):
         ImagenetDataset(
             os.path.join(root, 'database'),
             transform=query_transform(),
+            contrast_transform=query_transform(),
             target_transform=Onehot(num_classes),
         ),
         batch_size=batch_size,
@@ -66,9 +69,10 @@ class ImagenetDataset(Dataset):
     classes = None
     class_to_idx = None
 
-    def __init__(self, root, transform=None, target_transform=None):
+    def __init__(self, root, transform=None, contrast_transform= None, target_transform=None):
         self.root = root
         self.transform = transform
+        self.contrast_transform = contrast_transform
         self.target_transform = target_transform
         self.data = []
         self.targets = []
@@ -84,6 +88,8 @@ class ImagenetDataset(Dataset):
             self.data.extend(files)
             self.targets.extend([ImagenetDataset.class_to_idx[cl] for i in range(len(files))])
         self.targets = np.asarray(self.targets)
+        self.class_to_indexes = self._get_class_dict()
+        self.class_weight, self.sum_weight = self._get_weight()
         self.onehot_targets = torch.from_numpy(encode_onehot(self.targets, 100)).float()
 
     def get_onehot_targets(self):
@@ -97,11 +103,28 @@ class ImagenetDataset(Dataset):
 
         img = Image.open(img).convert('RGB')
 
-        if self.transform is not None:
-            img = self.transform(img)
+        if self.contrast_transform is not None:
+            img = self.contrast_transform(img)
+        
         if self.target_transform is not None:
             target = self.target_transform(target)
-        return img, target, item
+        meta = dict()
+        sample_class = self.sample_class_index_by_weight()
+        sample_indexes = self.class_to_indexes[sample_class]
+        sample_index = random.choice(sample_indexes)
+
+        sample_image, sample_target = self.data[sample_index], self.targets[sample_index]
+        sample_image = Image.open(sample_image).convert('RGB')
+        if self.transform is not None:
+            sample_image = self.transform(sample_image)
+        if self.target_transform is not None:
+            sample_target = self.target_transform(sample_target)
+        
+        meta['sample_image'] = sample_image
+        meta['sample_label'] = sample_target
+
+
+        return img, target, meta,item
 
     def _find_classes(self, dir):
         """
@@ -120,3 +143,28 @@ class ImagenetDataset(Dataset):
         classes.sort()
         class_to_idx = {classes[i]: i for i in range(len(classes))}
         return classes, class_to_idx
+    
+    def _get_class_dict(self):
+        class_dict = defaultdict(list)
+
+        for index, target in enumerate(self.targets):
+            class_dict[target].append(index)
+        return class_dict
+    
+    def _get_weight(self):
+        num_classes = len(ImagenetDataset.classes)
+        num_list = [0] * num_classes
+        for target in self.targets:
+            num_list[target] += 1
+        max_num = max(num_list)
+        class_weight = [max_num / i for i in num_list]
+        sum_weight = sum(class_weight)
+        return class_weight, sum_weight
+    
+    def sample_class_index_by_weight(self):
+        num_classes = len(ImagenetDataset.classes)
+        rand_number, now_sum = random.random() * self.sum_weight, 0
+        for i in range(num_classes):
+            now_sum += self.class_weight[i]
+            if rand_number <= now_sum:
+                return i

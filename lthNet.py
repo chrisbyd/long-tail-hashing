@@ -7,6 +7,7 @@ from loguru import logger
 from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from models.model_loader import load_model
+from models.combiner import Combiner
 from utils.evaluate import mean_average_precision
 
 
@@ -48,7 +49,7 @@ def train(
     """
     # Load model
     model = load_model(arch, feature_dim, code_length, num_classes, num_prototypes).to(device)
-
+    combiner = Combiner(device, max_epoch= max_iter)
     # Create criterion, optimizer, scheduler
     criterion = LTHNetLoss()
     optimizer = optim.RMSprop(
@@ -71,6 +72,7 @@ def train(
    
     # Training
     for it in range(max_iter):
+        combiner.reset_epoch(it+1)
         # update prototypes
         batch_iter = 0
         prototypes = generate_prototypes(model, train_dataloader, num_prototypes, feature_dim, device,
@@ -80,20 +82,18 @@ def train(
         model.train()
         tic = time.time()
         num_batch = len(train_dataloader)
-        for data, targets, index in train_dataloader:
-            data, targets, index = data.to(device), targets.to(device), index.to(device)
+        for data, targets, meta ,index in train_dataloader:
             optimizer.zero_grad()
-
+           
             #
-            hashcodes, assignments, _ = model(data, dynamic_meta_embedding, prototypes)
-            loss = criterion(hashcodes, assignments, targets, device, beta, gamma, mapping, it, max_iter)
+            loss = combiner.bbn_mix_loss(model,data,targets,meta,prototypes,beta=beta, mapping= mapping)
 
             running_loss = running_loss + loss.item()
             loss.backward()
             optimizer.step()
             batch_iter += 1
             logger.info(f"Epoch:{it}: {batch_iter}/{num_batch}, the long-tailed loss is {loss}")
-
+        
         # update step
         scheduler.step()
         training_time = time.time() - tic
@@ -187,7 +187,7 @@ def generate_code(model, dataloader, code_length, num_classes, device, dynamic_m
         N = len(dataloader.dataset)
         code = torch.zeros([N, code_length])
         assignment = torch.zeros([N, num_classes])
-        for data, _, index in dataloader:
+        for data, _,meta,index in dataloader:
             data = data.to(device)
             hash_code, class_assignment, _ = model(data, dynamic_meta_embedding, prototypes)
             code[index, :] = hash_code.sign().cpu()
@@ -213,8 +213,8 @@ def generate_prototypes(model, dataloader, num_prototypes, feature_dim, device, 
     with torch.no_grad():
         prototypes = torch.zeros([num_prototypes, feature_dim])
         counter = torch.zeros([num_prototypes])
-        for data, targets, _ in dataloader:
-            data, targets = data.to(device), targets.to(device)
+        for _, _, meta,_ in dataloader:
+            data, targets = meta['sample_image'].to(device), meta['sample_label'].to(device)
             _, _, direct_feature = model(data, dynamic_meta_embedding, prototypes_placeholder)
             direct_feature = direct_feature.to('cpu')
          

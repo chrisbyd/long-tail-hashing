@@ -37,6 +37,7 @@ class Resnet34(nn.Module):
         self.attention = nn.Softmax(dim=1)
 
         self.hash_layer = nn.Linear(feature_dim, code_length)
+        self.contrast_layer = nn.Linear(feature_dim, 128)
         # self.scale = nn.Parameter(torch.FloatTensor(np.ones([1, code_length])), requires_grad=True)
         # self.scale = nn.Parameter(torch.FloatTensor(np.ones(1)), requires_grad=True)
 
@@ -86,16 +87,13 @@ class Resnet34(nn.Module):
             # class assignments
             assignments = self.classifier(hash_codes)
             assignments = self.assignments(assignments)
+            return hash_codes, assignments, direct_feature
 
         else:
             # generate hashing
-            x = self.hash_layer(x)
+            x = self.contrast_layer(x)
             # hash_codes = nn.Tanh()(self.scale.repeat(x.size(0), 1) * x)
             # hash_codes = nn.Tanh()(self.scale * x)
-            hash_codes = nn.Tanh()(x)
+        
 
-            # class assignments
-            assignments = self.classifier(hash_codes)
-            # assignments = self.assignments(assignments)
-
-        return hash_codes, assignments, direct_feature
+            return x

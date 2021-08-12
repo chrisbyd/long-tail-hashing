@@ -43,7 +43,7 @@ def run():
 
     # class-samples mapping (train_dataloader). eg., mapping['0']=500, mapping['1']=100, etc.
     class_samples = torch.Tensor(np.zeros(args.num_classes))
-    for _, targets, _ in train_dataloader:
+    for _, targets,_,_ in train_dataloader:
         class_samples += torch.sum(targets, dim=0)
 
     mapping = {}
