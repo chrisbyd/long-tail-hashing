@@ -5,13 +5,15 @@ import torch.nn as nn
 import torch.optim as optim
 from loguru import logger
 from torch.optim.lr_scheduler import CosineAnnealingLR
-
+import torch.nn.functional as F
 from models.model_loader import load_model
 from utils.evaluate import mean_average_precision
-
+from utils.contrastive_loss import SupConLoss
+import numpy as np
 
 def train(
         train_dataloader,
+        train_contrast_dataloader,
         query_dataloader,
         retrieval_dataloader,
         arch,
@@ -48,7 +50,7 @@ def train(
     """
     # Load model
     model = load_model(arch, feature_dim, code_length, num_classes, num_prototypes).to(device)
-
+    ContrastLoss = SupConLoss()
     # Create criterion, optimizer, scheduler
     criterion = LTHNetLoss()
     optimizer = optim.RMSprop(
@@ -68,6 +70,7 @@ def train(
     training_time = 0.
     prototypes = torch.zeros([num_prototypes, feature_dim])
     prototypes = prototypes.to(device)
+    num_centroids = num_prototypes
    
     # Training
     for it in range(max_iter):
@@ -77,16 +80,28 @@ def train(
                                          dynamic_meta_embedding, prototypes)
         prototypes = prototypes.to(device)
 
+        hash_centroids, centroids_labels = generate_hash_center(model, train_dataloader, num_centroids, code_length, device,
+                                       dynamic_meta_embedding, prototypes)
+        hash_centroids, centroids_labels = hash_centroids.to(device), centroids_labels.to(device)
+
         model.train()
         tic = time.time()
         num_batch = len(train_dataloader)
-        for data, targets, index in train_dataloader:
+        for data, targets, index in train_contrast_dataloader:
+            x1 = data[0].to(device)
+            x2 = data[1].to(device)
+            data = torch.cat([x1,x2],dim=0)
             data, targets, index = data.to(device), targets.to(device), index.to(device)
+            targets = torch.cat([targets,targets], dim = 0)
             optimizer.zero_grad()
 
             #
             hashcodes, assignments, _ = model(data, dynamic_meta_embedding, prototypes)
+            loss_contrast_batch = ContrastLoss(hashcodes, targets, hashcodes, targets )
+            loss_contrast_centroids = ContrastLoss(hashcodes, targets, hash_centroids, centroids_labels, self_contrast= False)
+
             loss = criterion(hashcodes, assignments, targets, device, beta, gamma, mapping, it, max_iter)
+            loss = loss + loss_contrast_batch + loss_contrast_centroids
             logger.info(f"Epoch {it}/{max_iter},  {batch_iter}/{num_batch} the loss is {loss.item()}")
             running_loss = running_loss + loss.item()
             loss.backward()
@@ -231,6 +246,43 @@ def generate_prototypes(model, dataloader, num_prototypes, feature_dim, device, 
     torch.cuda.empty_cache()
     return prototypes
 
+def generate_hash_center(model, dataloader, num_centroids, feature_dim, device, dynamic_meta_embedding,
+                        prototypes_placeholder):
+    """
+    Generate prototypes (visual memory)
+
+    Args
+        dataloader(torch.utils.data.dataloader.DataLoader): Data loader.
+        code_length(int): Hash code length.
+        device(torch.device): Using gpu or cpu.
+
+    Returns
+        code(torch.Tensor): prototypes.
+    """
+    model.eval()
+    with torch.no_grad():
+        centroids = torch.zeros([num_centroids, feature_dim])
+        labels = torch.from_numpy(np.arange(100))
+        labels = F.one_hot(labels, num_classes = 100).type(torch.FloatTensor)
+        
+        counter = torch.zeros([num_centroids])
+        for data, targets, _ in dataloader:
+            data, targets = data.to(device), targets.to(device)
+            hash_codes, _, _ = model(data, dynamic_meta_embedding, prototypes_placeholder)
+            hash_codes = hash_codes.to('cpu')
+         
+            
+            index = torch.nonzero(targets, as_tuple=False)[:, 1]
+         
+            index = index.to('cpu')
+            for j in range(len(data)):
+                centroids[index[j], :] = centroids[index[j], :] + hash_codes[j, :]
+                counter[index[j]] = counter[index[j]] + 1
+
+        for k in range(num_centroids):
+            centroids[k, :] = centroids[k, :] / counter[k]
+    torch.cuda.empty_cache()
+    return centroids ,labels
 
 class LTHNetLoss(nn.Module):
     """

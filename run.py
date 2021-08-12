@@ -34,7 +34,7 @@ def run():
     np.random.seed(args.seed)
 
     # Load dataset
-    train_dataloader, query_dataloader, retrieval_dataloader = load_data(
+    train_dataloader, train_contrast_dataloader, query_dataloader, retrieval_dataloader = load_data(
         args.dataset,
         args.root,
         args.batch_size,
@@ -54,6 +54,7 @@ def run():
     for code_length in args.code_length:
         checkpoint = lthNet.train(
             train_dataloader,
+            train_contrast_dataloader,
             query_dataloader,
             retrieval_dataloader,
             args.arch,
