@@ -84,9 +84,13 @@ def train(
         num_batch = len(train_dataloader)
         for data, targets, meta ,index in train_dataloader:
             optimizer.zero_grad()
-           
-            #
-            loss = combiner.bbn_mix_loss(model,data,targets,meta,prototypes,beta=beta, mapping= mapping)
+            # images = meta['sample_image'].to(device)
+            # labels = meta['sample_label'].to(device)
+            images = meta['sample_image'].to(device)
+            labels = meta['sample_label'].to(device)
+            hashcodes, assignments, _ = model(images, dynamic_meta_embedding, prototypes)
+            #loss = combiner.bbn_mix_loss(model,data,targets,meta,prototypes,beta=beta, mapping= mapping)
+            loss =  criterion(hashcodes, assignments, labels, device, beta, gamma, mapping, it, max_iter)
 
             running_loss = running_loss + loss.item()
             loss.backward()

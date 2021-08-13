@@ -120,8 +120,8 @@ class ImagenetDataset(Dataset):
         if self.target_transform is not None:
             sample_target = self.target_transform(sample_target)
         
-        meta['sample_image'] = sample_image
-        meta['sample_label'] = sample_target
+        meta['sample_image'] = img
+        meta['sample_label'] = target
 
 
         return img, target, meta,item

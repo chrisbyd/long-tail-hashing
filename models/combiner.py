@@ -38,6 +38,7 @@ class LTHNetLoss(nn.Module):
 
         # class-balanced loss
         weights = torch.Tensor.repeat(balance_factor, [batch_size, 1]).to(device)
+        print(assignments)
         loss_class_balanced = torch.sum(- torch.log(assignments) * targets * weights) / batch_size
 
         # gradual learning
@@ -91,8 +92,10 @@ class Combiner:
         #l = np.random.beta(self.alpha, self.alpha) # beta distribution
         #l = 1 if self.epoch <= 120 else 0  # seperated stage
 
-        loss = l * loss_contrast+ (1 - l) * loss_classification
-
+        #loss = l * loss_contrast+ (1 - l) * loss_classification
+        loss = loss_contrast
+       # print("l is", l)
+        
         
         return loss
 
